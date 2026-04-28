@@ -8,23 +8,63 @@ STATUS_MAP = {
     'menunggu_payment':  '✅ Menunggu Payment',
 }
 
+CURRENT_YEAR = datetime.now().year
+
+
+def parse_deadline(raw: str) -> str:
+    """
+    Terima berbagai format deadline, kembalikan 'DD/MM/YYYY HH:MM'.
+    - '30/04/2026 18:00' → as-is
+    - '30/04 18:00'      → tambah tahun berjalan
+    - '30/04'            → tambah tahun berjalan + jam 23:59
+    """
+    raw = raw.strip()
+    # Sudah lengkap dengan tahun
+    try:
+        datetime.strptime(raw, '%d/%m/%Y %H:%M')
+        return raw
+    except ValueError:
+        pass
+    # Tanpa tahun, dengan jam
+    try:
+        dt = datetime.strptime(raw, '%d/%m %H:%M')
+        return dt.replace(year=CURRENT_YEAR).strftime('%d/%m/%Y %H:%M')
+    except ValueError:
+        pass
+    # Tanpa tahun, tanpa jam
+    try:
+        dt = datetime.strptime(raw, '%d/%m')
+        return dt.replace(year=CURRENT_YEAR, hour=23, minute=59).strftime('%d/%m/%Y %H:%M')
+    except ValueError:
+        pass
+    raise ValueError(f"Format deadline tidak dikenali: {raw}")
+
+
+def normalize_wa_number(number: str) -> str:
+    """Normalisasi nomor WA: 08xxx → 628xxx, +62xxx → 62xxx."""
+    digits = re.sub(r'\D', '', number)
+    if digits.startswith('0'):
+        digits = '62' + digits[1:]
+    return digits
+
 
 def hunter_link(hunter_name: str) -> str:
     name = hunter_name.strip()
     digits_only = re.sub(r'\D', '', name)
     if digits_only and len(digits_only) >= 9:
-        return f"[{name}](https://wa.me/{digits_only})"
+        normalized = normalize_wa_number(name)
+        return f"[{name}](https://wa.me/{normalized})"
     if name.startswith('@'):
         return f"[{name}](https://t.me/{name.lstrip('@')})"
     return name
 
 
 def format_job_list(jobs, title=None):
-    now = datetime.now()
-    ts  = now.strftime('%d/%m/%Y %H:%M')
+    now    = datetime.now()
+    ts     = now.strftime('%d/%m/%Y %H:%M')
+    header = title or f"📋 *Laporan Job — {ts}*"
 
     if not jobs:
-        header = title or f"📋 *Laporan Job — {ts}*"
         return f"{header}\n\n📭 Tidak ada job aktif saat ini."
 
     grouped = {k: [] for k in STATUS_MAP}
@@ -32,12 +72,24 @@ def format_job_list(jobs, title=None):
         if job['status'] in grouped:
             grouped[job['status']].append(job)
 
-    total = len(jobs)
-    header = title or f"📋 *Laporan Job — {ts}*"
+    # ── Financial summary ──────────────────────────────────────────────
+    uang_berjalan = sum(
+        j['fee'] for j in jobs
+        if j['status'] in ('on_proses', 'menunggu_approval', 'sedang_direvisi')
+    )
+    total_piutang = sum(
+        j['fee'] for j in jobs if j['status'] == 'menunggu_payment'
+    )
 
+    def rupiah(n):
+        return f"Rp {n:,}".replace(',', '.')
+
+    total_job = len(jobs)
     lines = [
         header,
-        f"Total aktif: *{total} job*",
+        f"Total aktif: *{total_job} job*",
+        f"💰 Uang Berjalan: *{rupiah(uang_berjalan)}*",
+        f"🏦 Total Piutang: *{rupiah(total_piutang)}*",
         "─────────────────────",
     ]
 
@@ -47,16 +99,14 @@ def format_job_list(jobs, title=None):
             continue
 
         lines.append(f"\n{label}")
-        lines.append(f"{'─' * 20}")
+        lines.append("─" * 20)
 
         for i, job in enumerate(job_list, 1):
-            # Pilih deadline relevan
-            if status_key == 'sedang_direvisi' and job['revision_deadline']:
-                dl_str = job['revision_deadline']
-            else:
-                dl_str = job['deadline']
-
-            # Sisa waktu
+            dl_str = (
+                job['revision_deadline']
+                if status_key == 'sedang_direvisi' and job['revision_deadline']
+                else job['deadline']
+            )
             try:
                 deadline = datetime.strptime(dl_str, '%d/%m/%Y %H:%M')
                 diff = (deadline - now).total_seconds()
@@ -71,15 +121,14 @@ def format_job_list(jobs, title=None):
             except Exception:
                 time_info = "─"
 
-            fee_str = f"Rp {job['fee']:,}".replace(',', '.')
-            link    = hunter_link(job['hunter_name'])
+            link = hunter_link(job['hunter_name'])
 
             if status_key == 'menunggu_payment':
                 lines.append(
                     f"{i}. *#{job['id']}* {link}\n"
                     f"   📱 {job['group_name']}\n"
                     f"   📋 {job['job_desc']}\n"
-                    f"   💰 {fee_str}\n"
+                    f"   💰 {rupiah(job['fee'])}\n"
                     f"   ✔️ Done: {job['done_at'] or '─'}"
                 )
             else:
@@ -87,13 +136,11 @@ def format_job_list(jobs, title=None):
                     f"{i}. *#{job['id']}* {link}\n"
                     f"   📱 {job['group_name']}\n"
                     f"   📋 {job['job_desc']}\n"
-                    f"   💰 {fee_str}\n"
+                    f"   💰 {rupiah(job['fee'])}\n"
                     f"   ⏰ {dl_str} ({time_info})"
                 )
 
-    lines.append("\n─────────────────────")
-
-    # Hitung job mendekati deadline (< 24 jam)
+    # ── Warning deadline 24 jam ────────────────────────────────────────
     warning_jobs = []
     for job in jobs:
         if job['status'] == 'menunggu_payment':
@@ -110,13 +157,16 @@ def format_job_list(jobs, title=None):
         except Exception:
             pass
 
+    lines.append("\n─────────────────────")
     if warning_jobs:
         warning_jobs.sort(key=lambda x: x[1])
         lines.append("⚠️ *Deadline dalam 24 jam:*")
         for job, diff in warning_jobs:
             h = int(diff // 3600)
             m = int((diff % 3600) // 60)
-            sisa = f"{h} jam {m} mnt" if h else f"{m} mnt"
+            sisa = f"{h}j {m}m" if h else f"{m} mnt"
             lines.append(f"  • #{job['id']} {job['hunter_name']} → sisa {sisa}")
+    else:
+        lines.append("✅ Tidak ada deadline mendesak")
 
     return "\n".join(lines)

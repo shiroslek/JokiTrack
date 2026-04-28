@@ -12,11 +12,7 @@ from telegram.ext import (
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from database import init_db
-from handlers import (
-    start, get_id,
-    any_message, handle_free_text,
-    cb_menu, cb_select_job, cb_set_status, cb_done,
-)
+from handlers import start, get_id, any_message, cb_handler
 from scheduler import send_hourly_reminder, check_deadlines
 
 logging.basicConfig(
@@ -35,7 +31,6 @@ async def post_init(application: Application) -> None:
 
     scheduler = AsyncIOScheduler(timezone='Asia/Makassar')
 
-    # Reminder setiap jam tepat (menit=0)
     scheduler.add_job(
         send_hourly_reminder,
         trigger='cron',
@@ -43,8 +38,6 @@ async def post_init(application: Application) -> None:
         args=[application.bot, CHAT_ID],
         id='hourly_reminder',
     )
-
-    # Cek deadline setiap 15 menit
     scheduler.add_job(
         check_deadlines,
         trigger='interval',
@@ -54,7 +47,7 @@ async def post_init(application: Application) -> None:
     )
 
     scheduler.start()
-    logger.info("Scheduler started — reminder tiap jam tepat, deadline check tiap 15 menit")
+    logger.info("Scheduler started — reminder tiap jam tepat, cek deadline tiap 15 menit")
 
 
 def main() -> None:
@@ -65,20 +58,16 @@ def main() -> None:
         .build()
     )
 
-    # /start dan /id tetap ada sebagai fallback
     app.add_handler(CommandHandler('start', start))
     app.add_handler(CommandHandler('id',    get_id))
 
-    # Callback handlers — urutan: spesifik dulu
-    app.add_handler(CallbackQueryHandler(cb_select_job, pattern=r'^job_\d+$'))
-    app.add_handler(CallbackQueryHandler(cb_set_status, pattern=r'^status_'))
-    app.add_handler(CallbackQueryHandler(cb_done,       pattern=r'^done_\d+$'))
-    app.add_handler(CallbackQueryHandler(cb_menu,       pattern=r'^menu_|^tambah_cancel$'))
+    # Satu callback handler untuk semua tombol
+    app.add_handler(CallbackQueryHandler(cb_handler))
 
-    # Semua teks → handle_free_text (form input) atau tampilkan menu utama
+    # Semua teks masuk ke any_message
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, any_message))
 
-    logger.info("Bot mulai polling...")
+    logger.info("Bot polling...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
