@@ -65,9 +65,10 @@ async def show_main_menu(target, edit=False):
 # ─── Entry point — semua pesan teks saat tidak dalam conversation ─────────────
 
 async def any_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Tangkap pesan teks apapun di luar conversation → tampilkan menu utama."""
+    """Tangkap pesan teks apapun → routing ke form/pending/menu."""
     user_id = update.effective_user.id
-    if user_id in pending:
+    # Sedang isi form tambah job atau input revision deadline → teruskan ke handler
+    if user_id in pending or context.user_data.get('conv_state') is not None:
         await handle_free_text(update, context)
         return
     await show_main_menu(update.message)
