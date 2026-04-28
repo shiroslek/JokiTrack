@@ -148,9 +148,8 @@ async def cb_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(
             "📝 *Tambah Job* — (1/5)\n\n"
             "Ketik *nomor WA* atau *nama* hunter:\n"
-            "_Contoh: 08316896805 atau Budi_\n\n"
-            "💡 *Quick-Add* — ketik 1 baris langsung simpan:\n"
-            "`Nomor|Grup|Keterangan|Fee|30/04 18:00`",
+            "_Contoh nomor: +62 831-6896-8059_\n"
+            "_Contoh nama: Budi_",
             parse_mode='Markdown',
             reply_markup=kb(row(btn("❌ Batal", "menu_home")))
         )
@@ -385,57 +384,6 @@ async def _handle_form(update, context, text: str, state: str):
     cancel_kb = kb(row(btn("❌ Batal", "menu_home")))
     form      = context.user_data.setdefault(FORM_DATA, {})
 
-    # ── Quick-Add: deteksi | separator ────────────────────────────────
-    if state == S_HUNTER and '|' in text:
-        parts = [p.strip() for p in text.split('|')]
-        if len(parts) >= 5:
-            try:
-                hunter_raw = parts[0]
-                group_raw  = parts[1]
-                desc_raw   = parts[2]
-                fee_raw    = re.sub(r'\D', '', parts[3])
-                dl_raw     = parts[4]
-
-                fee    = int(fee_raw)
-                dl_str = parse_deadline(dl_raw)
-
-                job_id = add_job(hunter_raw, group_raw, desc_raw, fee, dl_str)
-                context.user_data.pop(FORM_STATE, None)
-                context.user_data.pop(FORM_DATA, None)
-
-                fee_fmt = f"Rp {fee:,}".replace(',', '.')
-                link    = hunter_link(hunter_raw)
-                await update.message.reply_text(
-                    f"⚡ *Quick-Add berhasil!*\n\n"
-                    f"🆔 ID: #{job_id}\n"
-                    f"👤 Hunter: {link}\n"
-                    f"📱 Grup: {group_raw}\n"
-                    f"📋 Job: {desc_raw}\n"
-                    f"💰 Fee: {fee_fmt}\n"
-                    f"⏰ Deadline: {dl_str}\n"
-                    f"📌 Status: 🟡 On Proses",
-                    parse_mode='Markdown',
-                    disable_web_page_preview=True,
-                    reply_markup=kb(
-                        row(btn("📋 Lihat List",   "menu_list"),
-                            btn("🏠 Menu Utama",   "menu_home")),
-                    )
-                )
-                return
-            except Exception as e:
-                await update.message.reply_text(
-                    f"❌ Quick-Add gagal: {e}\n\nLanjut step-by-step:",
-                    parse_mode='Markdown', reply_markup=cancel_kb
-                )
-                # Jangan return — fall-through ke step biasa
-        else:
-            await update.message.reply_text(
-                "❌ Format Quick-Add kurang lengkap (butuh 5 bagian dipisah `|`).",
-                parse_mode='Markdown', reply_markup=cancel_kb
-            )
-            return
-
-    # ── Step-by-step ──────────────────────────────────────────────────
     import re as _re
 
     if state == S_HUNTER:

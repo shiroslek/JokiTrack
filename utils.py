@@ -50,8 +50,13 @@ def normalize_wa_number(number: str) -> str:
 
 def hunter_link(hunter_name: str) -> str:
     name = hunter_name.strip()
+    # Cek apakah input adalah nomor WA (boleh ada +, spasi, strip, titik)
+    # Contoh valid: +62 831-6896-8059 / 081368968059 / 6281368968059
     digits_only = re.sub(r'\D', '', name)
-    if digits_only and len(digits_only) >= 9:
+    # Anggap nomor WA jika: hampir semua karakter adalah angka/pemisah,
+    # dan panjang digit >= 9
+    non_digit_chars = re.sub(r'[\d\s\+\-\.\(\)]', '', name)
+    if len(digits_only) >= 9 and len(non_digit_chars) == 0:
         normalized = normalize_wa_number(name)
         return f"[{name}](https://wa.me/{normalized})"
     if name.startswith('@'):
