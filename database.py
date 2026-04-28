@@ -4,6 +4,12 @@ Database layer — PostgreSQL jika DATABASE_URL tersedia, fallback ke SQLite.
 import os
 import sqlite3
 from datetime import datetime
+import pytz
+
+WITA = pytz.timezone('Asia/Makassar')
+
+def now_wita():
+    return datetime.now(tz=WITA).replace(tzinfo=None)
 
 _DB_URL = os.environ.get('DATABASE_URL', '')
 if _DB_URL.startswith('postgres://'):
@@ -65,7 +71,7 @@ def add_job(hunter_name, group_name, job_desc, fee, deadline) -> int:
     conn = _get_conn()
     try:
         cur = _cursor(conn)
-        now = datetime.now().strftime('%d/%m/%Y %H:%M')
+        now = now_wita().strftime('%d/%m/%Y %H:%M')
         if USE_PG:
             cur.execute(
                 """INSERT INTO jobs
@@ -152,7 +158,7 @@ def delete_job(job_id: int):
 
 
 def get_near_deadline_jobs(hours: int = 3) -> list:
-    now = datetime.now()
+    now = now_wita()
     result = []
     for job in get_active_jobs():
         if job['status'] == 'menunggu_payment':

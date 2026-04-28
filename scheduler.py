@@ -1,16 +1,21 @@
 import logging
 from datetime import datetime
+import pytz
 
 from database import get_active_jobs, get_near_deadline_jobs
 from utils import format_job_list
 
 logger = logging.getLogger(__name__)
+WITA = pytz.timezone('Asia/Makassar')
+
+def now_wita():
+    return datetime.now(tz=WITA).replace(tzinfo=None)
 
 
 async def send_hourly_reminder(bot, chat_id: str):
     """Kirim laporan job lengkap setiap jam tepat."""
     jobs = get_active_jobs()
-    now_str = datetime.now().strftime('%d/%m/%Y %H:%M')
+    now_str = now_wita().strftime('%d/%m/%Y %H:%M')
 
     if not jobs:
         # Tetap kirim notif kosong agar user tahu bot jalan
@@ -44,7 +49,7 @@ async def check_deadlines(bot, chat_id: str):
     if not near:
         return
 
-    now_str = datetime.now().strftime('%H:%M')
+    now_str = now_wita().strftime('%H:%M')
     lines   = [f"🚨 *ALERT DEADLINE — {now_str}*\n"]
 
     for job, diff_secs in sorted(near, key=lambda x: x[1]):

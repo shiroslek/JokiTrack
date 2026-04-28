@@ -1,5 +1,12 @@
 import re
 from datetime import datetime
+import pytz
+
+WITA = pytz.timezone('Asia/Makassar')
+
+def now_wita() -> datetime:
+    """Kembalikan datetime sekarang dalam timezone WITA (UTC+8)."""
+    return datetime.now(tz=WITA).replace(tzinfo=None)
 
 STATUS_MAP = {
     'on_proses':         '🟡 On Proses',
@@ -65,7 +72,7 @@ def hunter_link(hunter_name: str) -> str:
 
 
 def format_job_list(jobs, title=None):
-    now    = datetime.now()
+    now    = now_wita()
     ts     = now.strftime('%d/%m/%Y %H:%M')
     header = title or f"📋 *Laporan Job — {ts}*"
 
@@ -156,7 +163,7 @@ def format_job_list(jobs, title=None):
                 if job['status'] == 'sedang_direvisi' and job['revision_deadline']
                 else job['deadline']
             )
-            diff = (datetime.strptime(dl_str, '%d/%m/%Y %H:%M') - now).total_seconds()
+            diff = (datetime.strptime(dl_str, '%d/%m/%Y %H:%M') - now_wita()).total_seconds()
             if 0 < diff <= 86400:
                 warning_jobs.append((job, diff))
         except Exception:

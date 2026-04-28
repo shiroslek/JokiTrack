@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+import pytz
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
@@ -8,6 +9,10 @@ from database import add_job, get_active_jobs, get_job, update_status, archive_j
 from utils import STATUS_MAP, format_job_list, hunter_link, parse_deadline, normalize_wa_number
 
 logger = logging.getLogger(__name__)
+
+WITA = pytz.timezone('Asia/Makassar')
+def now_wita():
+    return datetime.now(tz=WITA).replace(tzinfo=None)
 
 # State keys di context.user_data
 FORM_STATE  = 'form_state'
@@ -322,7 +327,7 @@ async def _do_set_status(query, context, job_id: int, new_status: str):
         return
 
     if new_status == 'menunggu_payment':
-        done_at = datetime.now().strftime('%d/%m/%Y %H:%M')
+        done_at = now_wita().strftime('%d/%m/%Y %H:%M')
         update_status(job_id, new_status, done_at=done_at)
         job  = get_job(job_id)
         link = hunter_link(job['hunter_name'])
