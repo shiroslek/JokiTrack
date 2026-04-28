@@ -11,14 +11,15 @@ STATUS_MAP = {
 
 def hunter_link(hunter_name: str) -> str:
     """
-    Ubah nomor/nama hunter jadi link klik-langsung:
-    - Jika berupa angka (nomor WA) → link wa.me
-    - Jika berupa @username Telegram → link t.me
-    - Selain itu → teks biasa
+    Format hunter jadi link klik-langsung:
+    - Angka / nomor WA (termasuk format +62 831-6896-8059) → link wa.me
+    - @username Telegram → link t.me
+    - Nama biasa → teks biasa
     """
     name = hunter_name.strip()
 
-    # Nomor WA: bersihkan karakter non-digit lalu buat link wa.me
+    # Cek apakah dominan angka (nomor WA berbagai format)
+    # Contoh: +62 831-6896-8059 / 081368968059 / 6281368968059
     digits_only = re.sub(r'\D', '', name)
     if digits_only and len(digits_only) >= 9:
         return f"[{name}](https://wa.me/{digits_only})"
@@ -55,7 +56,6 @@ def format_job_list(jobs, title="📋 *Daftar Job Aktif*"):
             else:
                 dl_str = job['deadline']
 
-            # Hitung sisa waktu
             try:
                 deadline = datetime.strptime(dl_str, '%d/%m/%Y %H:%M')
                 diff = (deadline - now).total_seconds()

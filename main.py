@@ -7,20 +7,15 @@ from telegram.ext import (
     CommandHandler,
     MessageHandler,
     CallbackQueryHandler,
-    ConversationHandler,
     filters,
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from database import init_db
 from handlers import (
-    start, get_id, bantuan,
-    list_jobs, update_start, selesai_start,
-    tambah_start, tambah_hunter, tambah_grup,
-    tambah_desc, tambah_fee, tambah_deadline, tambah_cancel,
+    start, get_id,
+    any_message, handle_free_text,
     cb_menu, cb_select_job, cb_set_status, cb_done,
-    handle_free_text,
-    HUNTER, GRUP, DESC, FEE, DEADLINE,
 )
 from scheduler import send_hourly_reminder, check_deadlines
 
@@ -40,7 +35,7 @@ async def post_init(application: Application) -> None:
 
     scheduler = AsyncIOScheduler(timezone='Asia/Makassar')
 
-    # Reminder setiap jam tepat
+    # Reminder setiap jam tepat (menit=0)
     scheduler.add_job(
         send_hourly_reminder,
         trigger='cron',
@@ -59,23 +54,10 @@ async def post_init(application: Application) -> None:
     )
 
     scheduler.start()
-    logger.info("Scheduler started")
+    logger.info("Scheduler started — reminder tiap jam tepat, deadline check tiap 15 menit")
 
 
 def main() -> None:
-    tambah_conv = ConversationHandler(
-        entry_points=[CommandHandler('tambah', tambah_start)],
-        states={
-            HUNTER:   [MessageHandler(filters.TEXT & ~filters.COMMAND, tambah_hunter)],
-            GRUP:     [MessageHandler(filters.TEXT & ~filters.COMMAND, tambah_grup)],
-            DESC:     [MessageHandler(filters.TEXT & ~filters.COMMAND, tambah_desc)],
-            FEE:      [MessageHandler(filters.TEXT & ~filters.COMMAND, tambah_fee)],
-            DEADLINE: [MessageHandler(filters.TEXT & ~filters.COMMAND, tambah_deadline)],
-        },
-        fallbacks=[CommandHandler('cancel', tambah_cancel)],
-        allow_reentry=True,
-    )
-
     app = (
         Application.builder()
         .token(BOT_TOKEN)
@@ -83,25 +65,18 @@ def main() -> None:
         .build()
     )
 
-    # Commands
-    app.add_handler(CommandHandler('start',   start))
-    app.add_handler(CommandHandler('id',      get_id))
-    app.add_handler(CommandHandler('bantuan', bantuan))
-    app.add_handler(CommandHandler('list',    list_jobs))
-    app.add_handler(CommandHandler('update',  update_start))
-    app.add_handler(CommandHandler('selesai', selesai_start))
+    # /start dan /id tetap ada sebagai fallback
+    app.add_handler(CommandHandler('start', start))
+    app.add_handler(CommandHandler('id',    get_id))
 
-    # Conversation
-    app.add_handler(tambah_conv)
-
-    # Callbacks — urutan: spesifik dulu
+    # Callback handlers — urutan: spesifik dulu
     app.add_handler(CallbackQueryHandler(cb_select_job, pattern=r'^job_\d+$'))
     app.add_handler(CallbackQueryHandler(cb_set_status, pattern=r'^status_'))
     app.add_handler(CallbackQueryHandler(cb_done,       pattern=r'^done_\d+$'))
-    app.add_handler(CallbackQueryHandler(cb_menu,       pattern=r'^menu_'))
+    app.add_handler(CallbackQueryHandler(cb_menu,       pattern=r'^menu_|^tambah_cancel$'))
 
-    # Free text (revision deadline input)
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_free_text))
+    # Semua teks → handle_free_text (form input) atau tampilkan menu utama
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, any_message))
 
     logger.info("Bot mulai polling...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
