@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 
 STATUS_MAP = {
@@ -6,6 +7,28 @@ STATUS_MAP = {
     'sedang_direvisi':   '🔴 Sedang Direvisi',
     'menunggu_payment':  '✅ Menunggu Payment',
 }
+
+
+def hunter_link(hunter_name: str) -> str:
+    """
+    Ubah nomor/nama hunter jadi link klik-langsung:
+    - Jika berupa angka (nomor WA) → link wa.me
+    - Jika berupa @username Telegram → link t.me
+    - Selain itu → teks biasa
+    """
+    name = hunter_name.strip()
+
+    # Nomor WA: bersihkan karakter non-digit lalu buat link wa.me
+    digits_only = re.sub(r'\D', '', name)
+    if digits_only and len(digits_only) >= 9:
+        return f"[{name}](https://wa.me/{digits_only})"
+
+    # Username Telegram
+    if name.startswith('@'):
+        username = name.lstrip('@')
+        return f"[{name}](https://t.me/{username})"
+
+    return name
 
 
 def format_job_list(jobs, title="📋 *Daftar Job Aktif*"):
@@ -27,7 +50,6 @@ def format_job_list(jobs, title="📋 *Daftar Job Aktif*"):
         lines.append(f"\n{label} ({len(job_list)})")
 
         for job in job_list:
-            # Pilih deadline yang relevan
             if status_key == 'sedang_direvisi' and job['revision_deadline']:
                 dl_str = job['revision_deadline']
             else:
@@ -49,16 +71,17 @@ def format_job_list(jobs, title="📋 *Daftar Job Aktif*"):
                 time_info = "-"
 
             fee_str = f"Rp {job['fee']:,}".replace(',', '.')
+            link = hunter_link(job['hunter_name'])
 
             if status_key == 'menunggu_payment':
                 done_info = f"\n   ✔️ Done: {job['done_at']}" if job['done_at'] else ""
                 lines.append(
-                    f"• #{job['id']} *{job['hunter_name']}* | {job['group_name']}\n"
+                    f"• #{job['id']} {link} | {job['group_name']}\n"
                     f"   {job['job_desc']} | {fee_str}{done_info}"
                 )
             else:
                 lines.append(
-                    f"• #{job['id']} *{job['hunter_name']}* | {job['job_desc']}\n"
+                    f"• #{job['id']} {link} | {job['job_desc']}\n"
                     f"   {fee_str} | ⏰ {dl_str} ({time_info})"
                 )
 

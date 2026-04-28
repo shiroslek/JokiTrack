@@ -14,17 +14,12 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from database import init_db
 from handlers import (
-    # Commands
     start, get_id, bantuan,
     list_jobs, update_start, selesai_start,
-    # Tambah conversation
     tambah_start, tambah_hunter, tambah_grup,
     tambah_desc, tambah_fee, tambah_deadline, tambah_cancel,
-    # Callbacks
-    cb_select_job, cb_set_status, cb_done,
-    # Free text handler
+    cb_menu, cb_select_job, cb_set_status, cb_done,
     handle_free_text,
-    # States
     HUNTER, GRUP, DESC, FEE, DEADLINE,
 )
 from scheduler import send_hourly_reminder, check_deadlines
@@ -40,11 +35,10 @@ CHAT_ID   = os.environ['CHAT_ID']
 
 
 async def post_init(application: Application) -> None:
-    """Dipanggil setelah Application siap — inisialisasi DB & scheduler."""
     init_db()
     logger.info("Database initialized")
 
-    scheduler = AsyncIOScheduler(timezone='Asia/Makassar')  # WITA (UTC+8)
+    scheduler = AsyncIOScheduler(timezone='Asia/Makassar')
 
     # Reminder setiap jam tepat
     scheduler.add_job(
@@ -65,11 +59,10 @@ async def post_init(application: Application) -> None:
     )
 
     scheduler.start()
-    logger.info("Scheduler started — reminder tiap jam, deadline check tiap 15 menit")
+    logger.info("Scheduler started")
 
 
 def main() -> None:
-    # ConversationHandler untuk /tambah
     tambah_conv = ConversationHandler(
         entry_points=[CommandHandler('tambah', tambah_start)],
         states={
@@ -90,23 +83,24 @@ def main() -> None:
         .build()
     )
 
-    # Command handlers
-    app.add_handler(CommandHandler('start',    start))
-    app.add_handler(CommandHandler('id',       get_id))
-    app.add_handler(CommandHandler('bantuan',  bantuan))
-    app.add_handler(CommandHandler('list',     list_jobs))
-    app.add_handler(CommandHandler('update',   update_start))
-    app.add_handler(CommandHandler('selesai',  selesai_start))
+    # Commands
+    app.add_handler(CommandHandler('start',   start))
+    app.add_handler(CommandHandler('id',      get_id))
+    app.add_handler(CommandHandler('bantuan', bantuan))
+    app.add_handler(CommandHandler('list',    list_jobs))
+    app.add_handler(CommandHandler('update',  update_start))
+    app.add_handler(CommandHandler('selesai', selesai_start))
 
-    # Conversation handler
+    # Conversation
     app.add_handler(tambah_conv)
 
-    # Callback query handlers (urutan penting — lebih spesifik dulu)
+    # Callbacks — urutan: spesifik dulu
     app.add_handler(CallbackQueryHandler(cb_select_job, pattern=r'^job_\d+$'))
-    app.add_handler(CallbackQueryHandler(cb_set_status,  pattern=r'^status_'))
-    app.add_handler(CallbackQueryHandler(cb_done,        pattern=r'^done_\d+$'))
+    app.add_handler(CallbackQueryHandler(cb_set_status, pattern=r'^status_'))
+    app.add_handler(CallbackQueryHandler(cb_done,       pattern=r'^done_\d+$'))
+    app.add_handler(CallbackQueryHandler(cb_menu,       pattern=r'^menu_'))
 
-    # Free text handler (untuk input revision deadline)
+    # Free text (revision deadline input)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_free_text))
 
     logger.info("Bot mulai polling...")
