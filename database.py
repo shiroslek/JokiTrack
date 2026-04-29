@@ -136,11 +136,24 @@ def update_status(job_id: int, status: str,
         conn.close()
 
 
+def _reset_id_if_empty(conn, cur):
+    """Reset auto-increment ID ke 1 jika tidak ada job sama sekali (aktif maupun arsip)."""
+    cur.execute('SELECT COUNT(*) FROM jobs')
+    row = cur.fetchone()
+    total = row[0] if not USE_PG else row['count']
+    if total == 0:
+        if USE_PG:
+            cur.execute("ALTER SEQUENCE jobs_id_seq RESTART WITH 1")
+        else:
+            cur.execute("DELETE FROM sqlite_sequence WHERE name='jobs'")
+
+
 def archive_job(job_id: int):
     conn = _get_conn()
     try:
         cur = _cursor(conn)
         cur.execute(f'UPDATE jobs SET is_archived=1 WHERE id={PH}', (job_id,))
+        _reset_id_if_empty(conn, cur)
         conn.commit()
     finally:
         conn.close()
@@ -152,6 +165,7 @@ def delete_job(job_id: int):
     try:
         cur = _cursor(conn)
         cur.execute(f'DELETE FROM jobs WHERE id={PH}', (job_id,))
+        _reset_id_if_empty(conn, cur)
         conn.commit()
     finally:
         conn.close()

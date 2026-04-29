@@ -141,8 +141,7 @@ async def cb_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=kb(
                 row(btn("🔄 Update", "menu_update"),
                     btn("🗑️ Hapus",  "menu_hapus")),
-                row(btn("✅ Selesai", "menu_selesai"),
-                    btn("🏠 Menu",   "menu_home")),
+                row(btn("🏠 Menu Utama", "menu_home")),
             )
         )
 
