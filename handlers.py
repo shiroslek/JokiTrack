@@ -122,9 +122,9 @@ async def cb_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🔵 Menunggu Approval — Sudah kirim\n"
             "🔴 Sedang Direvisi — Ada revisi\n"
             "✅ Menunggu Payment — Tinggal nunggu bayar\n\n"
-            "*Quick-Add (1 baris):*\n"
-            "`Nomor|Grup|Keterangan|Fee|Deadline`\n"
-            "_Contoh: 0831...|Grup Joki|Essay 5 hal|75000|30/04 18:00_\n\n"
+            "*Format Tambah Job (pisah 2 spasi):*\n"
+            "`Nomor/Nama  Grup  Keterangan  Fee  Deadline`\n"
+            "_Contoh: +62 831-6896-8059  Grup Joki  Essay 5 hal  75000  30/04 18:00_\n\n"
             "⏰ Reminder otomatis tiap jam tepat\n"
             "🚨 Alert jika deadline ≤ 3 jam",
             parse_mode='Markdown',
@@ -148,13 +148,14 @@ async def cb_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── Tambah Job ───────────────────────────────────────────────────────
     elif data == 'menu_tambah':
-        context.user_data[FORM_STATE] = S_HUNTER
-        context.user_data[FORM_DATA]  = {}
+        context.user_data[FORM_STATE] = 'quick_add'
         await query.edit_message_text(
-            "📝 *Tambah Job* — (1/5)\n\n"
-            "Ketik *nomor WA* atau *nama* hunter:\n"
-            "_Contoh nomor: +62 831-6896-8059_\n"
-            "_Contoh nama: Budi_",
+            "📝 *Tambah Job*\n\n"
+            "Ketik 1 baris, pisahkan tiap bagian dengan *2 spasi*:\n\n"
+            "`Nomor/Nama  Grup  Keterangan  Fee  Deadline`\n\n"
+            "*Contoh:*\n"
+            "`+62 831-6896-8059  Grup Joki UI  Essay 5 hal  75000  30/04 18:00`\n\n"
+            "_Deadline boleh tanpa tahun, otomatis 2026_",
             parse_mode='Markdown',
             reply_markup=kb(row(btn("❌ Batal", "menu_home")))
         )
@@ -386,89 +387,67 @@ async def any_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _handle_form(update, context, text: str, state: str):
-    cancel_kb = kb(row(btn("❌ Batal", "menu_home")))
-    form      = context.user_data.setdefault(FORM_DATA, {})
-
+    """Quick-add: parse 1 baris dipisah 2 spasi."""
     import re as _re
+    cancel_kb = kb(row(btn("❌ Batal", "menu_home")))
 
-    if state == S_HUNTER:
-        form['hunter_name'] = text
-        context.user_data[FORM_STATE] = S_GRUP
+    if state != 'quick_add':
+        await update.message.reply_text(MAIN_TEXT, parse_mode='Markdown',
+                                        reply_markup=kb_main())
+        return
+
+    # Split by 2+ spasi
+    parts = [p.strip() for p in re.split(r'  +', text)]
+    parts = [p for p in parts if p]  # buang yang kosong
+
+    if len(parts) < 5:
         await update.message.reply_text(
-            "📝 *Tambah Job* — (2/5)\n\nDari grup WA mana?\n_Contoh: Grup Joki UI_",
+            "❌ Kurang lengkap. Format:\n"
+            "`Nomor/Nama  Grup  Keterangan  Fee  Deadline`\n\n"
+            "_Pisahkan tiap bagian dengan 2 spasi_",
             parse_mode='Markdown', reply_markup=cancel_kb
         )
+        return
 
-    elif state == S_GRUP:
-        form['group_name'] = text
-        context.user_data[FORM_STATE] = S_DESC
+    hunter_raw = parts[0]
+    group_raw  = parts[1]
+    desc_raw   = parts[2]
+    fee_raw    = _re.sub(r'\D', '', parts[3])
+    dl_raw     = parts[4]
+
+    try:
+        fee    = int(fee_raw)
+        dl_str = parse_deadline(dl_raw)
+    except ValueError as e:
         await update.message.reply_text(
-            "📝 *Tambah Job* — (3/5)\n\nKeterangan job?\n_Contoh: Essay 5 hal, PPT 10 slide_",
+            f"❌ Error: {e}\n\n"
+            "Pastikan format fee angka dan deadline `DD/MM HH:MM`",
             parse_mode='Markdown', reply_markup=cancel_kb
         )
+        return
 
-    elif state == S_DESC:
-        form['job_desc'] = text
-        context.user_data[FORM_STATE] = S_FEE
-        await update.message.reply_text(
-            "📝 *Tambah Job* — (4/5)\n\nFee bersih kamu?\n_Angka saja, contoh: 75000_",
-            parse_mode='Markdown', reply_markup=cancel_kb
+    job_id = add_job(hunter_raw, group_raw, desc_raw, fee, dl_str)
+    context.user_data.pop(FORM_STATE, None)
+    context.user_data.pop(FORM_DATA, None)
+
+    fee_fmt = f"Rp {fee:,}".replace(',', '.')
+    link    = hunter_link(hunter_raw)
+
+    await update.message.reply_text(
+        f"✅ *Data Berhasil Disimpan!*\n\n"
+        f"🆔 ID: #{job_id}\n"
+        f"👤 Hunter: {link}\n"
+        f"📱 Grup: {group_raw}\n"
+        f"📋 Job: {desc_raw}\n"
+        f"💰 Fee: {fee_fmt}\n"
+        f"⏰ Deadline: {dl_str}\n"
+        f"📌 Status: 🟡 On Proses",
+        parse_mode='Markdown',
+        disable_web_page_preview=True,
+        reply_markup=kb(
+            row(btn("🔄 Update Status", f"job_upd_{job_id}"),
+                btn("📋 Lihat List",     "menu_list")),
+            row(btn("➕ Tambah Lagi",    "menu_tambah"),
+                btn("🏠 Menu Utama",     "menu_home")),
         )
-
-    elif state == S_FEE:
-        raw = _re.sub(r'\D', '', text)
-        try:
-            form['fee'] = int(raw)
-            context.user_data[FORM_STATE] = S_DEADLINE
-            await update.message.reply_text(
-                "📝 *Tambah Job* — (5/5)\n\nDeadline?\n"
-                "Format: `DD/MM/YYYY HH:MM` atau `DD/MM HH:MM`\n"
-                "_Contoh: 30/04/2026 18:00 atau 30/04 18:00_",
-                parse_mode='Markdown', reply_markup=cancel_kb
-            )
-        except ValueError:
-            await update.message.reply_text(
-                "❌ Harus berupa angka. Coba lagi:", reply_markup=cancel_kb
-            )
-
-    elif state == S_DEADLINE:
-        try:
-            dl_str = parse_deadline(text)
-            form['deadline'] = dl_str
-
-            job_id = add_job(
-                form['hunter_name'], form['group_name'],
-                form['job_desc'], form['fee'], form['deadline']
-            )
-
-            # Bersihkan state form
-            context.user_data.pop(FORM_STATE, None)
-            context.user_data.pop(FORM_DATA, None)
-
-            fee_fmt = f"Rp {form['fee']:,}".replace(',', '.')
-            link    = hunter_link(form['hunter_name'])
-
-            await update.message.reply_text(
-                f"✅ *Data Berhasil Disimpan!*\n\n"
-                f"🆔 ID: #{job_id}\n"
-                f"👤 Hunter: {link}\n"
-                f"📱 Grup: {form['group_name']}\n"
-                f"📋 Job: {form['job_desc']}\n"
-                f"💰 Fee: {fee_fmt}\n"
-                f"⏰ Deadline: {dl_str}\n"
-                f"📌 Status: 🟡 On Proses",
-                parse_mode='Markdown',
-                disable_web_page_preview=True,
-                reply_markup=kb(
-                    row(btn("🔄 Update Status", f"job_upd_{job_id}"),
-                        btn("📋 Lihat List",     "menu_list")),
-                    row(btn("➕ Tambah Lagi",    "menu_tambah"),
-                        btn("🏠 Menu Utama",     "menu_home")),
-                )
-            )
-        except ValueError:
-            await update.message.reply_text(
-                "❌ Format tidak dikenali. Coba lagi:\n"
-                "`DD/MM/YYYY HH:MM` atau `DD/MM HH:MM`",
-                parse_mode='Markdown', reply_markup=cancel_kb
-            )
+    )
