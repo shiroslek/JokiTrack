@@ -137,11 +137,15 @@ def update_status(job_id: int, status: str,
 
 
 def _reset_id_if_empty(conn, cur):
-    """Reset auto-increment ID ke 1 jika tidak ada job sama sekali (aktif maupun arsip)."""
-    cur.execute('SELECT COUNT(*) FROM jobs')
+    """Reset auto-increment ID ke 1 jika tidak ada job aktif.
+    Sekalian hapus semua arsip agar tidak ada konflik ID."""
+    cur.execute("SELECT COUNT(*) FROM jobs WHERE is_archived = 0")
     row = cur.fetchone()
-    total = row[0] if not USE_PG else row['count']
-    if total == 0:
+    active = row[0] if not USE_PG else row['count']
+    if active == 0:
+        # Hapus semua arsip dulu
+        cur.execute("DELETE FROM jobs")
+        # Reset sequence
         if USE_PG:
             cur.execute("ALTER SEQUENCE jobs_id_seq RESTART WITH 1")
         else:
