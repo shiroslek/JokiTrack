@@ -210,6 +210,7 @@ async def cb_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         job_id = int(data.split('_')[2])
         job    = get_job(job_id)
         delete_job(job_id)
+        await query.answer(f"🗑️ Job #{job_id} berhasil dihapus!", show_alert=True)
         await query.edit_message_text(
             f"🗑️ Job *#{job_id}* ({job['job_desc'] if job else '-'}) berhasil dihapus.",
             parse_mode='Markdown',
@@ -226,6 +227,7 @@ async def cb_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         archive_job(job_id)
         fee_fmt = f"Rp {job['fee']:,}".replace(',', '.')
         link    = hunter_link(job['hunter_name'])
+        await query.answer(f"🎉 Job #{job_id} lunas & diarsipkan!", show_alert=True)
         await query.edit_message_text(
             f"🎉 *Job #{job_id} lunas & diarsipkan!*\n\n"
             f"👤 {link} | {job['group_name']}\n"
@@ -331,6 +333,7 @@ async def _do_set_status(query, context, job_id: int, new_status: str):
         update_status(job_id, new_status, done_at=done_at)
         job  = get_job(job_id)
         link = hunter_link(job['hunter_name'])
+        await query.answer("✅ Status diperbarui → Menunggu Payment!", show_alert=True)
         await query.edit_message_text(
             f"✅ *Job #{job_id} — Menunggu Payment*\n\n"
             f"👤 {link} | {job['group_name']}\n"
@@ -343,6 +346,7 @@ async def _do_set_status(query, context, job_id: int, new_status: str):
 
     update_status(job_id, new_status)
     label = STATUS_MAP.get(new_status, new_status)
+    await query.answer(f"✅ Status diperbarui → {label}!", show_alert=True)
     await query.edit_message_text(
         f"✅ Job *#{job_id}* diperbarui → {label}",
         parse_mode='Markdown',
@@ -364,7 +368,7 @@ async def any_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             update_status(job_id, 'sedang_direvisi', revision_deadline=dl_str)
             del context.user_data[PENDING_STATE]
             await update.message.reply_text(
-                f"🔴 Job *#{job_id}* → Sedang Direvisi\n⏰ Deadline revisi: {dl_str}",
+                f"🎉 *Berhasil!* Job *#{job_id}* → Sedang Direvisi\n⏰ Deadline revisi: {dl_str}",
                 parse_mode='Markdown', reply_markup=KB_BACK_HOME
             )
         except ValueError:
@@ -433,7 +437,7 @@ async def _handle_form(update, context, text: str, state: str):
     link    = hunter_link(hunter_raw)
 
     await update.message.reply_text(
-        f"✅ *Data Berhasil Disimpan!*\n\n"
+        f"🎉 *Data Berhasil Disimpan!*\n\n"
         f"🆔 ID: #{job_id}\n"
         f"👤 Hunter: {link}\n"
         f"📱 Grup: {group_raw}\n"
