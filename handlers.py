@@ -122,9 +122,9 @@ async def cb_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🔵 Menunggu Approval — Sudah kirim\n"
             "🔴 Sedang Direvisi — Ada revisi\n"
             "✅ Menunggu Payment — Tinggal nunggu bayar\n\n"
-            "*Format Tambah Job (pisah 2 spasi):*\n"
-            "`Nomor/Nama  Grup  Keterangan  Fee  Deadline`\n"
-            "_Contoh: +62 831-6896-8059  Grup Joki  Essay 5 hal  75000  30/04 18:00_\n\n"
+            "*Format Tambah Job (pisah . spasi):*\n"
+            "`Nomor/Nama . Grup . Keterangan . Fee . Deadline`\n"
+            "_Contoh: +62 831-6896-8059 . Grup Joki . Essay 5 hal . 75000 . 30/04 18:00_\n\n"
             "⏰ Reminder otomatis tiap jam tepat\n"
             "🚨 Alert jika deadline ≤ 3 jam",
             parse_mode='Markdown',
@@ -151,10 +151,10 @@ async def cb_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data[FORM_STATE] = 'quick_add'
         await query.edit_message_text(
             "📝 *Tambah Job*\n\n"
-            "Ketik 1 baris, pisahkan tiap bagian dengan *2 spasi*:\n\n"
-            "`Nomor/Nama  Grup  Keterangan  Fee  Deadline`\n\n"
+            "Ketik 1 baris, pisahkan tiap bagian dengan *. * (titik spasi):\n\n"
+            "`Nomor/Nama . Grup . Keterangan . Fee . Deadline`\n\n"
             "*Contoh:*\n"
-            "`+62 831-6896-8059  Grup Joki UI  Essay 5 hal  75000  30/04 18:00`\n\n"
+            "`+62 831-6896-8059 . Grup Joki UI . Essay 5 hal . 75000 . 30/04 18:00`\n\n"
             "_Deadline boleh tanpa tahun, otomatis 2026_",
             parse_mode='Markdown',
             reply_markup=kb(row(btn("❌ Batal", "menu_home")))
@@ -387,7 +387,7 @@ async def any_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _handle_form(update, context, text: str, state: str):
-    """Quick-add: parse 1 baris dipisah 2 spasi."""
+    """Quick-add: parse 1 baris dipisah ". " (titik spasi)."""
     import re as _re
     cancel_kb = kb(row(btn("❌ Batal", "menu_home")))
 
@@ -396,15 +396,15 @@ async def _handle_form(update, context, text: str, state: str):
                                         reply_markup=kb_main())
         return
 
-    # Split by 2+ spasi
-    parts = [p.strip() for p in re.split(r'  +', text)]
+    # Split by ". " (titik spasi)
+    parts = [p.strip() for p in text.split('. ')]
     parts = [p for p in parts if p]  # buang yang kosong
 
     if len(parts) < 5:
         await update.message.reply_text(
             "❌ Kurang lengkap. Format:\n"
-            "`Nomor/Nama  Grup  Keterangan  Fee  Deadline`\n\n"
-            "_Pisahkan tiap bagian dengan 2 spasi_",
+            "`Nomor/Nama . Grup . Keterangan . Fee . Deadline`\n\n"
+            "_Pisahkan tiap bagian dengan titik spasi \". \"_",
             parse_mode='Markdown', reply_markup=cancel_kb
         )
         return
